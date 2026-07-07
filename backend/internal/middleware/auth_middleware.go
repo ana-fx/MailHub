@@ -5,42 +5,43 @@ import (
 	"net/http"
 
 	"mailhub/internal/repository"
+	"mailhub/internal/security"
 )
 
-const APIKeyContextKey = "apiKeyID"
-const RepoContextKey = "repo"
+type contextKey int
 
-func APIKeyAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		repo := r.Context().Value(RepoContextKey)
-		if repo == nil {
-			http.Error(w, "repository not available", http.StatusInternalServerError)
-			return
-		}
-		emailRepo, ok := repo.(repository.EmailRepository)
-		if !ok {
-			http.Error(w, "invalid repository", http.StatusInternalServerError)
-			return
-		}
+const apiKeyIDContextKey contextKey = iota
 
-		apiKey := r.Header.Get("X-API-Key")
-		if apiKey == "" {
-			http.Error(w, "missing api key", http.StatusUnauthorized)
-			return
-		}
+// APIKeyAuth returns middleware that authenticates requests via the
+// X-API-Key header. The presented key is hashed before lookup, so only
+// key hashes are ever compared or stored.
+func APIKeyAuth(repo repository.EmailRepository) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey == "" {
+				http.Error(w, "missing api key", http.StatusUnauthorized)
+				return
+			}
 
-		key, err := emailRepo.FindAPIKeyByHash(r.Context(), apiKey)
-		if err != nil {
-			http.Error(w, "invalid api key", http.StatusUnauthorized)
-			return
-		}
+			key, err := repo.FindAPIKeyByHash(r.Context(), security.HashAPIKey(apiKey))
+			if err != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			if key == nil {
+				http.Error(w, "invalid api key", http.StatusUnauthorized)
+				return
+			}
 
-		ctx := context.WithValue(r.Context(), APIKeyContextKey, key.ID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			ctx := context.WithValue(r.Context(), apiKeyIDContextKey, key.ID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
+// GetAPIKeyID returns the authenticated API key ID stored by APIKeyAuth.
 func GetAPIKeyID(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(APIKeyContextKey).(string)
+	v, ok := ctx.Value(apiKeyIDContextKey).(string)
 	return v, ok
 }

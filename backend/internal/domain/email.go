@@ -1,18 +1,11 @@
 package domain
 
-type UserStatus string
-
-const (
-	UserStatusActive   UserStatus = "active"
-	UserStatusInactive UserStatus = "inactive"
-)
-
 type User struct {
-	ID        string
-	Email     string
-	Password  string
-	IsActive  bool
-	CreatedAt string
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"-"`
+	IsActive     bool   `json:"is_active"`
+	CreatedAt    string `json:"created_at"`
 }
 
 type EmailStatus string
@@ -24,40 +17,44 @@ const (
 )
 
 type Email struct {
-	ID         string
-	APIKeyID   string
-	Recipient  string
-	Subject    string
-	Body       string
-	Status     EmailStatus
-	RetryCount int
-	Error      string
-	MessageID  string
-	CreatedAt  string
-	UpdatedAt  string
+	ID         string      `json:"id"`
+	APIKeyID   string      `json:"api_key_id"`
+	Recipient  string      `json:"recipient"`
+	Subject    string      `json:"subject"`
+	Body       string      `json:"body"`
+	Status     EmailStatus `json:"status"`
+	RetryCount int         `json:"retry_count"`
+	Error      string      `json:"error,omitempty"`
+	MessageID  string      `json:"message_id,omitempty"`
+	CreatedAt  string      `json:"created_at"`
+	UpdatedAt  string      `json:"updated_at"`
 }
 
 type APIKey struct {
-	ID        string
-	Name      string
-	KeyHash   string
-	IsActive  bool
-	CreatedAt string
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	KeyHash   string `json:"-"`
+	IsActive  bool   `json:"is_active"`
+	CreatedAt string `json:"created_at"`
 }
 
 type SendEmailRequest struct {
-	To      string
-	Subject string
-	Body    string
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
 }
 
 type SendEmailResponse struct {
-	ID                string
-	Status            string
-	ProviderMessageID string
+	ID                string `json:"id"`
+	Status            string `json:"status"`
+	ProviderMessageID string `json:"provider_message_id"`
 }
 
-type LoginRequest struct {
-	Email    string
-	Password string
+type CredentialsRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type AuthResponse struct {
+	APIKey string `json:"apiKey"`
 }

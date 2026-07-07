@@ -16,8 +16,6 @@ type Config struct {
 	DBPassword     string
 	DBName         string
 	DBSSLMode      string
-	AWSAccessKeyID string
-	AWSSecretKey   string
 	AWSRegion      string
 	SESSenderEmail string
 	MaxRetryCount  int
@@ -35,8 +33,6 @@ func Load() (*Config, error) {
 		DBPassword:     getEnv("DB_PASSWORD", ""),
 		DBName:         getEnv("DB_NAME", "mailhub"),
 		DBSSLMode:      getEnv("DB_SSLMODE", "disable"),
-		AWSAccessKeyID: getEnv("AWS_ACCESS_KEY_ID", ""),
-		AWSSecretKey:   getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
 		SESSenderEmail: getEnv("SES_SENDER_EMAIL", ""),
 	}

@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 
 	_ "github.com/lib/pq"
+
 	"mailhub/internal/domain"
 )
 
@@ -16,7 +17,7 @@ type EmailRepository interface {
 	FindAPIKeyByHash(ctx context.Context, hash string) (*domain.APIKey, error)
 	CreateUser(ctx context.Context, user *domain.User) error
 	FindUserByEmail(ctx context.Context, email string) (*domain.User, error)
-	CreateAPIKey(ctx context.Context, apiKey *domain.APIKey) error
+	UpsertAPIKey(ctx context.Context, apiKey *domain.APIKey) error
 	Close() error
 }
 
@@ -31,6 +32,7 @@ func NewPostgres(ctx context.Context, dsn string) (*PostgresEmailRepo, error) {
 	}
 
 	if err := db.PingContext(ctx); err != nil {
+		db.Close()
 		return nil, err
 	}
 
@@ -38,8 +40,10 @@ func NewPostgres(ctx context.Context, dsn string) (*PostgresEmailRepo, error) {
 }
 
 func (r *PostgresEmailRepo) Create(ctx context.Context, email *domain.Email) error {
-	const q = `INSERT INTO email_logs (id, api_key_id, recipient, subject, body, status, retry_count) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-	return r.db.QueryRowContext(ctx, q, email.ID, email.APIKeyID, email.Recipient, email.Subject, email.Body, email.Status, email.RetryCount).Scan(&email.ID)
+	const q = `INSERT INTO email_logs (id, api_key_id, recipient, subject, body, status, retry_count)
+	           VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := r.db.ExecContext(ctx, q, email.ID, email.APIKeyID, email.Recipient, email.Subject, email.Body, email.Status, email.RetryCount)
+	return err
 }
 
 func (r *PostgresEmailRepo) UpdateStatus(ctx context.Context, id string, status domain.EmailStatus, providerMessageID string) error {
@@ -54,14 +58,15 @@ func (r *PostgresEmailRepo) IncrementRetry(ctx context.Context, id string, errMs
 	return err
 }
 
+// FindAPIKeyByHash returns the active API key matching the hash, or nil if
+// no such key exists.
 func (r *PostgresEmailRepo) FindAPIKeyByHash(ctx context.Context, hash string) (*domain.APIKey, error) {
 	const q = `SELECT id, name, key_hash, is_active, created_at FROM api_keys WHERE key_hash = $1 AND is_active = true`
-	row := r.db.QueryRowContext(ctx, q, hash)
 
 	key := &domain.APIKey{}
-	err := row.Scan(&key.ID, &key.Name, &key.KeyHash, &key.IsActive, &key.CreatedAt)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("api key not found")
+	err := r.db.QueryRowContext(ctx, q, hash).Scan(&key.ID, &key.Name, &key.KeyHash, &key.IsActive, &key.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
@@ -71,17 +76,17 @@ func (r *PostgresEmailRepo) FindAPIKeyByHash(ctx context.Context, hash string) (
 
 func (r *PostgresEmailRepo) CreateUser(ctx context.Context, user *domain.User) error {
 	const q = `INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)`
-	_, err := r.db.ExecContext(ctx, q, user.ID, user.Email, user.Password)
+	_, err := r.db.ExecContext(ctx, q, user.ID, user.Email, user.PasswordHash)
 	return err
 }
 
+// FindUserByEmail returns the user with the given email, or nil if none exists.
 func (r *PostgresEmailRepo) FindUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	const q = `SELECT id, email, password_hash, is_active, created_at FROM users WHERE email = $1`
-	row := r.db.QueryRowContext(ctx, q, email)
 
 	user := &domain.User{}
-	err := row.Scan(&user.ID, &user.Email, &user.Password, &user.IsActive, &user.CreatedAt)
-	if err == sql.ErrNoRows {
+	err := r.db.QueryRowContext(ctx, q, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.IsActive, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -90,8 +95,12 @@ func (r *PostgresEmailRepo) FindUserByEmail(ctx context.Context, email string) (
 	return user, nil
 }
 
-func (r *PostgresEmailRepo) CreateAPIKey(ctx context.Context, apiKey *domain.APIKey) error {
-	const q = `INSERT INTO api_keys (id, name, key_hash) VALUES ($1, $2, $3)`
+// UpsertAPIKey inserts the API key or, if the ID already exists, replaces
+// its hash and reactivates it. Used to rotate a user's default key on login.
+func (r *PostgresEmailRepo) UpsertAPIKey(ctx context.Context, apiKey *domain.APIKey) error {
+	const q = `INSERT INTO api_keys (id, name, key_hash)
+	           VALUES ($1, $2, $3)
+	           ON CONFLICT (id) DO UPDATE SET key_hash = EXCLUDED.key_hash, name = EXCLUDED.name, is_active = true`
 	_, err := r.db.ExecContext(ctx, q, apiKey.ID, apiKey.Name, apiKey.KeyHash)
 	return err
 }

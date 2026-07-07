@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"mailhub/internal/config"
 	"mailhub/internal/handler"
@@ -28,27 +29,28 @@ func main() {
 	}
 	defer repo.Close()
 
-	sesProvider, err := provider.NewSESProvider(cfg.AWSRegion, cfg.AWSAccessKeyID, cfg.AWSSecretKey, cfg.SESSenderEmail)
+	sesProvider, err := provider.NewSESProvider(cfg.AWSRegion, cfg.SESSenderEmail)
 	if err != nil {
 		log.Fatalf("ses init: %v", err)
 	}
 
 	emailService := service.NewEmailService(repo, sesProvider, cfg.MaxRetryCount, cfg.RetryBaseDelay)
-	emailHandler := handler.NewEmailHandler(emailService)
-	authHandler := handler.NewAuthHandler(repo)
 
 	mux := http.NewServeMux()
-	emailHandler.RegisterRoutes(mux)
-	authHandler.RegisterRoutes(mux)
+	handler.NewEmailHandler(emailService).RegisterRoutes(mux, middleware.APIKeyAuth(repo))
+	handler.NewAuthHandler(repo).RegisterRoutes(mux)
 
-	withRepo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r2 := r.WithContext(context.WithValue(r.Context(), middleware.RepoContextKey, repo))
-		mux.ServeHTTP(w, r2)
-	})
+	srv := &http.Server{
+		Addr:              "0.0.0.0:" + cfg.Port,
+		Handler:           middleware.Cors(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
-	addr := "0.0.0.0:" + cfg.Port
-	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, middleware.Cors(withRepo)); err != nil {
+	log.Printf("listening on %s", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }

@@ -2,43 +2,42 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"math"
 	"time"
 
 	"mailhub/internal/domain"
 	"mailhub/internal/provider"
 	"mailhub/internal/repository"
+	"mailhub/internal/security"
 )
 
 type EmailService struct {
-	repo       repository.EmailRepository
-	provider   provider.Provider
-	maxRetry   int
-	baseDelay  time.Duration
+	repo      repository.EmailRepository
+	provider  provider.Provider
+	maxRetry  int
+	baseDelay time.Duration
 }
 
 func NewEmailService(repo repository.EmailRepository, provider provider.Provider, maxRetry int, baseDelay time.Duration) *EmailService {
 	return &EmailService{
-		repo:       repo,
-		provider:   provider,
-		maxRetry:   maxRetry,
-		baseDelay:  baseDelay,
+		repo:      repo,
+		provider:  provider,
+		maxRetry:  maxRetry,
+		baseDelay: baseDelay,
 	}
 }
 
+// SendEmail logs the email, then attempts delivery with exponential backoff
+// up to maxRetry additional attempts.
 func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *domain.SendEmailRequest) (*domain.SendEmailResponse, error) {
 	email := &domain.Email{
-		APIKeyID:   apiKeyID,
-		Recipient:  req.To,
-		Subject:    req.Subject,
-		Body:       req.Body,
-		Status:     domain.EmailStatusPending,
-		RetryCount: 0,
+		ID:        security.NewID(),
+		APIKeyID:  apiKeyID,
+		Recipient: req.To,
+		Subject:   req.Subject,
+		Body:      req.Body,
+		Status:    domain.EmailStatusPending,
 	}
-	email.ID = newEmailID()
 
 	if err := s.repo.Create(ctx, email); err != nil {
 		return nil, err
@@ -47,14 +46,20 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 	var lastErr error
 	for attempt := 0; attempt <= s.maxRetry; attempt++ {
 		if attempt > 0 {
-			wait := s.baseDelay * time.Duration(math.Pow(2, float64(attempt-1)))
-			time.Sleep(wait)
+			if err := sleepCtx(ctx, s.baseDelay<<(attempt-1)); err != nil {
+				lastErr = err
+				break
+			}
 		}
 
 		messageID, sendErr := s.provider.SendEmail(ctx, req.To, req.Subject, req.Body)
 		if sendErr == nil {
 			_ = s.repo.UpdateStatus(ctx, email.ID, domain.EmailStatusSent, messageID)
-			return &domain.SendEmailResponse{ID: email.ID, Status: string(domain.EmailStatusSent), ProviderMessageID: messageID}, nil
+			return &domain.SendEmailResponse{
+				ID:                email.ID,
+				Status:            string(domain.EmailStatusSent),
+				ProviderMessageID: messageID,
+			}, nil
 		}
 
 		lastErr = sendErr
@@ -62,11 +67,17 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 	}
 
 	_ = s.repo.UpdateStatus(ctx, email.ID, domain.EmailStatusFailed, "")
-	return nil, errors.Join(lastErr, errors.New("email sending failed after retries"))
+	return nil, errors.Join(errors.New("email sending failed after retries"), lastErr)
 }
 
-func newEmailID() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
+// sleepCtx waits for d or until ctx is cancelled, whichever comes first.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

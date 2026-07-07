@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"mailhub/internal/domain"
@@ -18,20 +19,20 @@ func NewEmailHandler(emailService *service.EmailService) *EmailHandler {
 	return &EmailHandler{emailService: emailService}
 }
 
-func (h *EmailHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /emails/send", middleware.APIKeyAuthMiddleware(http.HandlerFunc(h.SendEmail)).ServeHTTP)
+func (h *EmailHandler) RegisterRoutes(mux *http.ServeMux, auth func(http.Handler) http.Handler) {
+	mux.Handle("POST /emails/send", auth(http.HandlerFunc(h.SendEmail)))
 }
 
 func (h *EmailHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 	apiKeyID, ok := middleware.GetAPIKeyID(r.Context())
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req domain.SendEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -40,21 +41,19 @@ func (h *EmailHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 	req.Body = strings.TrimSpace(req.Body)
 
 	if req.To == "" || req.Subject == "" || req.Body == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "to, subject, and body are required"})
+		writeError(w, http.StatusBadRequest, "to, subject, and body are required")
+		return
+	}
+	if _, err := mail.ParseAddress(req.To); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid recipient address")
 		return
 	}
 
 	resp, err := h.emailService.SendEmail(r.Context(), apiKeyID, &req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusBadGateway, "email delivery failed")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func writeJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
 }
