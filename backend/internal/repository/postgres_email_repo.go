@@ -5,10 +5,21 @@ import (
 	"database/sql"
 	"errors"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 
 	"mailhub/internal/domain"
 )
+
+// Postgres error codes used to translate driver errors into sentinel errors.
+const (
+	pgUniqueViolation = "23505"
+	pgInvalidText     = "22P02" // e.g. a malformed UUID in a query parameter
+)
+
+func isPgError(err error, code string) bool {
+	var pgErr *pq.Error
+	return errors.As(err, &pgErr) && string(pgErr.Code) == code
+}
 
 type PostgresEmailRepo struct {
 	db *sql.DB
@@ -119,6 +130,79 @@ func (r *PostgresEmailRepo) FindUserByEmail(ctx context.Context, email string) (
 		return nil, err
 	}
 	return user, nil
+}
+
+// CreateContact inserts the contact; the generated UUID is written back
+// into contact.ID. Returns ErrDuplicateContact if the email already exists
+// for this API key.
+func (r *PostgresEmailRepo) CreateContact(ctx context.Context, contact *domain.Contact) error {
+	const q = `INSERT INTO contacts (api_key_id, name, email, phone, address)
+	           VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	err := r.db.QueryRowContext(ctx, q, contact.APIKeyID, contact.Name, contact.Email, contact.Phone, contact.Address).Scan(&contact.ID)
+	if isPgError(err, pgUniqueViolation) {
+		return ErrDuplicateContact
+	}
+	return err
+}
+
+// ListContacts returns the API key's contacts, newest first.
+func (r *PostgresEmailRepo) ListContacts(ctx context.Context, apiKeyID string, limit int) ([]domain.Contact, error) {
+	const q = `SELECT id, api_key_id, name, email, phone, address, created_at, updated_at
+	           FROM contacts WHERE api_key_id = $1 ORDER BY created_at DESC LIMIT $2`
+
+	rows, err := r.db.QueryContext(ctx, q, apiKeyID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	contacts := []domain.Contact{}
+	for rows.Next() {
+		var c domain.Contact
+		if err := rows.Scan(&c.ID, &c.APIKeyID, &c.Name, &c.Email, &c.Phone, &c.Address, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		contacts = append(contacts, c)
+	}
+	return contacts, rows.Err()
+}
+
+// UpdateContact replaces the contact's fields. The WHERE clause is scoped
+// to the API key so one tenant can never touch another tenant's contact.
+func (r *PostgresEmailRepo) UpdateContact(ctx context.Context, contact *domain.Contact) error {
+	const q = `UPDATE contacts SET name = $1, email = $2, phone = $3, address = $4, updated_at = now()
+	           WHERE id = $5 AND api_key_id = $6`
+	res, err := r.db.ExecContext(ctx, q, contact.Name, contact.Email, contact.Phone, contact.Address, contact.ID, contact.APIKeyID)
+	switch {
+	case isPgError(err, pgUniqueViolation):
+		return ErrDuplicateContact
+	case isPgError(err, pgInvalidText):
+		return ErrContactNotFound
+	case err != nil:
+		return err
+	}
+
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrContactNotFound
+	}
+	return nil
+}
+
+// DeleteContact removes the contact, scoped to the API key.
+func (r *PostgresEmailRepo) DeleteContact(ctx context.Context, apiKeyID, id string) error {
+	const q = `DELETE FROM contacts WHERE id = $1 AND api_key_id = $2`
+	res, err := r.db.ExecContext(ctx, q, id, apiKeyID)
+	if isPgError(err, pgInvalidText) {
+		return ErrContactNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrContactNotFound
+	}
+	return nil
 }
 
 func (r *PostgresEmailRepo) Close() error {

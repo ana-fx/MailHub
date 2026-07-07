@@ -146,3 +146,44 @@ export interface EmailLog {
 export function listEmails(): Promise<EmailLog[]> {
   return api<EmailLog[]>('/api/v1/emails');
 }
+
+export interface Contact {
+  id: string;
+  api_key_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Only email is required; the rest may be empty strings.
+export interface ContactPayload {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+
+export function listContacts(): Promise<Contact[]> {
+  return api<Contact[]>('/api/v1/contacts');
+}
+
+export function createContact(payload: ContactPayload): Promise<Contact> {
+  return api<Contact>('/api/v1/contacts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateContact(id: string, payload: ContactPayload): Promise<Contact> {
+  return api<Contact>(`/api/v1/contacts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteContact(id: string): Promise<void> {
+  return api<void>(`/api/v1/contacts/${id}`, { method: 'DELETE' });
+}

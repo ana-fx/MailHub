@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { clearApiKey, EmailLog, EmailStatus, listEmails, sendEmail } from '@/lib/api';
+import { Contact, EmailLog, EmailStatus, getApiKey, listContacts, listEmails, sendEmail } from '@/lib/api';
 import { useApiKey } from '@/lib/use-api-key';
+import { AppHeader } from '@/components/app-header';
 
 const inputClass =
   'mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
@@ -24,9 +25,12 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [logs, setLogs] = useState<EmailLog[] | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
+  // During hydration the reactive apiKey briefly reads as null (the server
+  // snapshot), so the guard re-checks storage directly before redirecting.
   useEffect(() => {
-    if (!apiKey) {
+    if (!apiKey && !getApiKey()) {
       router.replace('/login');
     }
   }, [apiKey, router]);
@@ -50,14 +54,17 @@ export default function DashboardPage() {
       .catch(() => {
         // Auth errors clear the key and trigger the redirect effect.
       });
+    listContacts()
+      .then((data) => {
+        if (!cancelled) setContacts(data);
+      })
+      .catch(() => {
+        // The datalist is a nice-to-have; ignore load failures.
+      });
     return () => {
       cancelled = true;
     };
   }, [apiKey]);
-
-  function logout() {
-    clearApiKey();
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,21 +107,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-black">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">MailHub</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Send email and track recent deliveries.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Logout
-          </button>
-        </div>
+        <AppHeader subtitle="Send email and track recent deliveries." />
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {(['sent', 'failed', 'pending'] as const).map((status) => (
@@ -142,7 +135,14 @@ export default function DashboardPage() {
             <label className={labelClass} htmlFor="to">
               To
             </label>
-            <input id="to" name="to" type="email" required className={inputClass} />
+            <input id="to" name="to" type="email" required list="contact-emails" className={inputClass} />
+            <datalist id="contact-emails">
+              {contacts.map((contact) => (
+                <option key={contact.id} value={contact.email}>
+                  {contact.name}
+                </option>
+              ))}
+            </datalist>
 
             <label className={labelClass} htmlFor="subject">
               Subject
