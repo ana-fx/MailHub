@@ -56,6 +56,30 @@ Returns `202 Accepted`:
 Errors: `400` (validation), `401` (missing/invalid API key), `500`
 (delivery failed after retries — see below).
 
+## Docker & CI/CD
+
+Every push to `main` that touches `backend/` or `migrations/` runs the
+GitHub Actions workflow (`.github/workflows/backend.yml`):
+
+1. **CI** — gofmt check, `go build`, `go vet`, `go test`.
+2. **CD** — builds the multi-stage Docker image and pushes it to GHCR as
+   `ghcr.io/<owner>/mailhub-backend:latest` (and `:<commit-sha>`).
+
+Run the published image anywhere:
+
+```bash
+docker run -p 8080:8080 \
+  -e DB_HOST=... -e DB_PASSWORD=... \
+  -e AWS_ACCESS_KEY_ID=... -e AWS_SECRET_ACCESS_KEY=... \
+  -e AWS_REGION=... -e SES_SENDER_EMAIL=... \
+  ghcr.io/ana-fx/mailhub-backend:latest
+```
+
+To auto-deploy after each build, set the repository variable
+`DEPLOY_HOOK_ENABLED=true` and the secret `DEPLOY_HOOK_URL` to your
+host's deploy hook (Render, Railway, Coolify, ...); the workflow will
+POST to it after pushing the image.
+
 ## Retry behavior
 
 On provider failure the service increments `retry_count`, waits
