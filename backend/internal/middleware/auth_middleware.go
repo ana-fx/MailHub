@@ -8,10 +8,11 @@ import (
 )
 
 const APIKeyContextKey = "apiKeyID"
+const RepoContextKey = "repo"
 
 func APIKeyAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		repo := r.Context().Value("repo")
+		repo := r.Context().Value(RepoContextKey)
 		if repo == nil {
 			http.Error(w, "repository not available", http.StatusInternalServerError)
 			return

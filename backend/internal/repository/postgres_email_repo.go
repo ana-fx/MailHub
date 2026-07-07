@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "github.com/lib/pq"
 	"mailhub/internal/domain"
 )
 
@@ -34,8 +35,8 @@ func NewPostgres(ctx context.Context, dsn string) (*PostgresEmailRepo, error) {
 }
 
 func (r *PostgresEmailRepo) Create(ctx context.Context, email *domain.Email) error {
-	const q = `INSERT INTO email_logs (api_key_id, recipient, subject, body, status, retry_count) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
-	return r.db.QueryRowContext(ctx, q, email.APIKeyID, email.Recipient, email.Subject, email.Body, email.Status, email.RetryCount).Scan(&email.ID)
+	const q = `INSERT INTO email_logs (id, api_key_id, recipient, subject, body, status, retry_count) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+	return r.db.QueryRowContext(ctx, q, email.ID, email.APIKeyID, email.Recipient, email.Subject, email.Body, email.Status, email.RetryCount).Scan(&email.ID)
 }
 
 func (r *PostgresEmailRepo) UpdateStatus(ctx context.Context, id string, status domain.EmailStatus, providerMessageID string) error {

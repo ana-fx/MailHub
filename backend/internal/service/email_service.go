@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math"
 	"time"
@@ -36,6 +38,7 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 		Status:     domain.EmailStatusPending,
 		RetryCount: 0,
 	}
+	email.ID = newEmailID()
 
 	if err := s.repo.Create(ctx, email); err != nil {
 		return nil, err
@@ -60,4 +63,10 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 
 	_ = s.repo.UpdateStatus(ctx, email.ID, domain.EmailStatusFailed, "")
 	return nil, errors.Join(lastErr, errors.New("email sending failed after retries"))
+}
+
+func newEmailID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
 }

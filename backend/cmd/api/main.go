@@ -8,6 +8,7 @@ import (
 
 	"mailhub/internal/config"
 	"mailhub/internal/handler"
+	"mailhub/internal/middleware"
 	"mailhub/internal/provider"
 	"mailhub/internal/repository"
 	"mailhub/internal/service"
@@ -38,9 +39,12 @@ func main() {
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
-	addr := ":" + cfg.Port
+	addr := "0.0.0.0:" + cfg.Port
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, middleware.Cors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r2 := r.WithContext(context.WithValue(r.Context(), middleware.RepoContextKey, repo))
+		mux.ServeHTTP(w, r2)
+	}))); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }
