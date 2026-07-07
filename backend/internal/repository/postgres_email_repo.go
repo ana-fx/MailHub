@@ -14,6 +14,9 @@ type EmailRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.EmailStatus, providerMessageID string) error
 	IncrementRetry(ctx context.Context, id string, errMsg string) error
 	FindAPIKeyByHash(ctx context.Context, hash string) (*domain.APIKey, error)
+	CreateUser(ctx context.Context, user *domain.User) error
+	FindUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	CreateAPIKey(ctx context.Context, apiKey *domain.APIKey) error
 	Close() error
 }
 
@@ -64,6 +67,33 @@ func (r *PostgresEmailRepo) FindAPIKeyByHash(ctx context.Context, hash string) (
 		return nil, err
 	}
 	return key, nil
+}
+
+func (r *PostgresEmailRepo) CreateUser(ctx context.Context, user *domain.User) error {
+	const q = `INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)`
+	_, err := r.db.ExecContext(ctx, q, user.ID, user.Email, user.Password)
+	return err
+}
+
+func (r *PostgresEmailRepo) FindUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	const q = `SELECT id, email, password_hash, is_active, created_at FROM users WHERE email = $1`
+	row := r.db.QueryRowContext(ctx, q, email)
+
+	user := &domain.User{}
+	err := row.Scan(&user.ID, &user.Email, &user.Password, &user.IsActive, &user.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *PostgresEmailRepo) CreateAPIKey(ctx context.Context, apiKey *domain.APIKey) error {
+	const q = `INSERT INTO api_keys (id, name, key_hash) VALUES ($1, $2, $3)`
+	_, err := r.db.ExecContext(ctx, q, apiKey.ID, apiKey.Name, apiKey.KeyHash)
+	return err
 }
 
 func (r *PostgresEmailRepo) Close() error {

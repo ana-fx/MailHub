@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.26.0
 	github.com/aws/aws-sdk-go-v2/service/ses v1.30.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.12.3
 )
 
 require (
@@ -21,5 +22,4 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.4 // indirect
 	github.com/aws/smithy-go v1.22.2 // indirect
-	github.com/lib/pq v1.12.3 // indirect
 )

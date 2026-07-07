@@ -1,5 +1,20 @@
 package domain
 
+type UserStatus string
+
+const (
+	UserStatusActive   UserStatus = "active"
+	UserStatusInactive UserStatus = "inactive"
+)
+
+type User struct {
+	ID        string
+	Email     string
+	Password  string
+	IsActive  bool
+	CreatedAt string
+}
+
 type EmailStatus string
 
 const (
@@ -9,15 +24,17 @@ const (
 )
 
 type Email struct {
-	ID            string
-	APIKeyID      string
-	Recipient     string
-	Subject       string
-	Body          string
-	Status        EmailStatus
-	RetryCount    int
-	ErrorMessage  *string
-	ProviderMessageID *string
+	ID         string
+	APIKeyID   string
+	Recipient  string
+	Subject    string
+	Body       string
+	Status     EmailStatus
+	RetryCount int
+	Error      string
+	MessageID  string
+	CreatedAt  string
+	UpdatedAt  string
 }
 
 type APIKey struct {
@@ -35,7 +52,12 @@ type SendEmailRequest struct {
 }
 
 type SendEmailResponse struct {
-	ID               string
-	Status           string
+	ID                string
+	Status            string
 	ProviderMessageID string
+}
+
+type LoginRequest struct {
+	Email    string
+	Password string
 }

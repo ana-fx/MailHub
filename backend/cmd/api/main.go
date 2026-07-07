@@ -34,17 +34,21 @@ func main() {
 	}
 
 	emailService := service.NewEmailService(repo, sesProvider, cfg.MaxRetryCount, cfg.RetryBaseDelay)
-	h := handler.NewEmailHandler(emailService)
+	emailHandler := handler.NewEmailHandler(emailService)
+	authHandler := handler.NewAuthHandler(repo)
 
 	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
+	emailHandler.RegisterRoutes(mux)
+	authHandler.RegisterRoutes(mux)
+
+	withRepo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r2 := r.WithContext(context.WithValue(r.Context(), middleware.RepoContextKey, repo))
+		mux.ServeHTTP(w, r2)
+	})
 
 	addr := "0.0.0.0:" + cfg.Port
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, middleware.Cors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r2 := r.WithContext(context.WithValue(r.Context(), middleware.RepoContextKey, repo))
-		mux.ServeHTTP(w, r2)
-	}))); err != nil {
+	if err := http.ListenAndServe(addr, middleware.Cors(withRepo)); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }
