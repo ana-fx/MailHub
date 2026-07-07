@@ -31,7 +31,7 @@ func Load() (*Config, error) {
 		DBPort:         getEnv("DB_PORT", "5432"),
 		DBUser:         getEnv("DB_USER", "postgres"),
 		DBPassword:     getEnv("DB_PASSWORD", ""),
-		DBName:         getEnv("DB_NAME", "mailhub"),
+		DBName:         getEnv("DB_NAME", "transactional_email_service"),
 		DBSSLMode:      getEnv("DB_SSLMODE", "disable"),
 		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
 		SESSenderEmail: getEnv("SES_SENDER_EMAIL", ""),

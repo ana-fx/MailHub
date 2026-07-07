@@ -6,6 +6,7 @@ import (
 
 	"mailhub/internal/repository"
 	"mailhub/internal/security"
+	"mailhub/pkg/response"
 )
 
 type contextKey int
@@ -20,17 +21,17 @@ func APIKeyAuth(repo repository.EmailRepository) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
 			if apiKey == "" {
-				http.Error(w, "missing api key", http.StatusUnauthorized)
+				response.Error(w, http.StatusUnauthorized, "missing api key")
 				return
 			}
 
 			key, err := repo.FindAPIKeyByHash(r.Context(), security.HashAPIKey(apiKey))
 			if err != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				response.Error(w, http.StatusInternalServerError, "internal error")
 				return
 			}
 			if key == nil {
-				http.Error(w, "invalid api key", http.StatusUnauthorized)
+				response.Error(w, http.StatusUnauthorized, "invalid api key")
 				return
 			}
 

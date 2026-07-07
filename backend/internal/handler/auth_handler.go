@@ -11,6 +11,7 @@ import (
 	"mailhub/internal/domain"
 	"mailhub/internal/repository"
 	"mailhub/internal/security"
+	"mailhub/pkg/response"
 )
 
 const minPasswordLength = 8
@@ -24,8 +25,8 @@ func NewAuthHandler(repo repository.EmailRepository) *AuthHandler {
 }
 
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /auth/login", h.Login)
-	mux.HandleFunc("POST /auth/register", h.Register)
+	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
+	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
 }
 
 // Login verifies the user's credentials and rotates their default API key.
@@ -38,26 +39,26 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.repo.FindUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		response.Error(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if user == nil || !user.IsActive {
-		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		response.Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		response.Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
 	apiKey, err := h.issueAPIKey(r, user)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue api key")
+		response.Error(w, http.StatusInternalServerError, "failed to issue api key")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, domain.AuthResponse{APIKey: apiKey})
+	response.Success(w, http.StatusOK, domain.AuthResponse{APIKey: apiKey})
 }
 
 // Register creates a new user and issues their first API key.
@@ -68,44 +69,43 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Password) < minPasswordLength {
-		writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		response.Error(w, http.StatusBadRequest, "password must be at least 8 characters")
 		return
 	}
 
 	existing, err := h.repo.FindUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		response.Error(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if existing != nil {
-		writeError(w, http.StatusConflict, "email already registered")
+		response.Error(w, http.StatusConflict, "email already registered")
 		return
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		response.Error(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	user := &domain.User{
-		ID:           security.NewID(),
 		Email:        req.Email,
 		PasswordHash: string(passwordHash),
 		IsActive:     true,
 	}
 	if err := h.repo.CreateUser(r.Context(), user); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to register user")
+		response.Error(w, http.StatusInternalServerError, "failed to register user")
 		return
 	}
 
 	apiKey, err := h.issueAPIKey(r, user)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue api key")
+		response.Error(w, http.StatusInternalServerError, "failed to issue api key")
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, domain.AuthResponse{APIKey: apiKey})
+	response.Success(w, http.StatusCreated, domain.AuthResponse{APIKey: apiKey})
 }
 
 // issueAPIKey generates a fresh random key for the user's default key slot
@@ -117,7 +117,7 @@ func (h *AuthHandler) issueAPIKey(r *http.Request, user *domain.User) (string, e
 	}
 
 	err = h.repo.UpsertAPIKey(r.Context(), &domain.APIKey{
-		ID:      user.ID + "-default",
+		ID:      security.DefaultKeyID(user.ID),
 		Name:    user.Email,
 		KeyHash: security.HashAPIKey(apiKey),
 	})
@@ -132,18 +132,18 @@ func (h *AuthHandler) issueAPIKey(r *http.Request, user *domain.User) (string, e
 func decodeCredentials(w http.ResponseWriter, r *http.Request) (domain.CredentialsRequest, bool) {
 	var req domain.CredentialsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		response.Error(w, http.StatusBadRequest, "invalid request body")
 		return req, false
 	}
 
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	if req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "email and password are required")
+		response.Error(w, http.StatusBadRequest, "email and password are required")
 		return req, false
 	}
 	if _, err := mail.ParseAddress(req.Email); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid email address")
+		response.Error(w, http.StatusBadRequest, "invalid email address")
 		return req, false
 	}
 	return req, true

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 )
 
 // APIKeyPrefix marks MailHub secret keys so they are recognizable in logs
@@ -27,11 +28,16 @@ func HashAPIKey(key string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// NewID returns a random 128-bit hex identifier.
-func NewID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic("security: crypto/rand unavailable: " + err.Error())
-	}
-	return hex.EncodeToString(b[:])
+// DefaultKeyID derives a stable UUID for the user's default API key slot,
+// so logging in again rotates the same row instead of inserting a new one.
+// Only the row ID is deterministic; the key material itself is random.
+func DefaultKeyID(userID string) string {
+	sum := sha256.Sum256([]byte(userID + "/default-key"))
+	return formatUUID(sum[:16])
+}
+
+func formatUUID(b []byte) string {
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4 layout
+	b[8] = (b[8] & 0x3f) | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

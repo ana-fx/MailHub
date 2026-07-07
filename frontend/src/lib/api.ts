@@ -43,7 +43,14 @@ async function parseError(res: Response, fallback: string): Promise<string> {
   }
 }
 
-async function authenticate(path: '/auth/login' | '/auth/register', email: string, password: string): Promise<string> {
+// All endpoints respond with {success: true, data} or {success: false, error}.
+interface Envelope<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+async function authenticate(path: '/api/v1/auth/login' | '/api/v1/auth/register', email: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -54,19 +61,19 @@ async function authenticate(path: '/auth/login' | '/auth/register', email: strin
     throw new Error(await parseError(res, 'Authentication failed'));
   }
 
-  const data = (await res.json()) as { apiKey?: string };
-  if (!data.apiKey) {
+  const body = (await res.json()) as Envelope<{ apiKey?: string }>;
+  if (!body.success || !body.data?.apiKey) {
     throw new Error('Invalid response from server');
   }
-  return data.apiKey;
+  return body.data.apiKey;
 }
 
 export function login(email: string, password: string): Promise<string> {
-  return authenticate('/auth/login', email, password);
+  return authenticate('/api/v1/auth/login', email, password);
 }
 
 export function register(email: string, password: string): Promise<string> {
-  return authenticate('/auth/register', email, password);
+  return authenticate('/api/v1/auth/register', email, password);
 }
 
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -95,7 +102,11 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (res.status === 204) return undefined as T;
 
-  return (await res.json()) as T;
+  const body = (await res.json()) as Envelope<T>;
+  if (!body.success || body.data === undefined) {
+    throw new Error(body.error ?? 'Invalid response from server');
+  }
+  return body.data;
 }
 
 export interface SendEmailPayload {
@@ -111,7 +122,7 @@ export interface SendEmailResponse {
 }
 
 export function sendEmail(payload: SendEmailPayload): Promise<SendEmailResponse> {
-  return api<SendEmailResponse>('/emails/send', {
+  return api<SendEmailResponse>('/api/v1/emails', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

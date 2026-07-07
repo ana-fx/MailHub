@@ -8,8 +8,12 @@ import (
 	"mailhub/internal/domain"
 	"mailhub/internal/provider"
 	"mailhub/internal/repository"
-	"mailhub/internal/security"
+	"mailhub/internal/validator"
 )
+
+// ErrDeliveryFailed is returned when the provider keeps failing after all
+// retries; handlers map it to a 500 without leaking provider details.
+var ErrDeliveryFailed = errors.New("email delivery failed after retries")
 
 type EmailService struct {
 	repo      repository.EmailRepository
@@ -27,31 +31,27 @@ func NewEmailService(repo repository.EmailRepository, provider provider.Provider
 	}
 }
 
-// SendEmail logs the email, then attempts delivery with exponential backoff
-// up to maxRetry additional attempts.
+// SendEmail validates the request, records a pending log, then attempts
+// delivery. On failure it increments retry_count, waits
+// baseDelay * 2^retry_count, and tries again until maxRetry is reached,
+// after which the log is marked failed.
 func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *domain.SendEmailRequest) (*domain.SendEmailResponse, error) {
+	if err := validator.ValidateSendEmailRequest(req); err != nil {
+		return nil, err
+	}
+
 	email := &domain.Email{
-		ID:        security.NewID(),
 		APIKeyID:  apiKeyID,
 		Recipient: req.To,
 		Subject:   req.Subject,
 		Body:      req.Body,
 		Status:    domain.EmailStatusPending,
 	}
-
 	if err := s.repo.Create(ctx, email); err != nil {
 		return nil, err
 	}
 
-	var lastErr error
-	for attempt := 0; attempt <= s.maxRetry; attempt++ {
-		if attempt > 0 {
-			if err := sleepCtx(ctx, s.baseDelay<<(attempt-1)); err != nil {
-				lastErr = err
-				break
-			}
-		}
-
+	for retryCount := 0; ; {
 		messageID, sendErr := s.provider.SendEmail(ctx, req.To, req.Subject, req.Body)
 		if sendErr == nil {
 			_ = s.repo.UpdateStatus(ctx, email.ID, domain.EmailStatusSent, messageID)
@@ -62,12 +62,19 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 			}, nil
 		}
 
-		lastErr = sendErr
+		retryCount++
 		_ = s.repo.IncrementRetry(ctx, email.ID, sendErr.Error())
+
+		if retryCount >= s.maxRetry {
+			break
+		}
+		if err := sleepCtx(ctx, s.baseDelay*(1<<retryCount)); err != nil {
+			break
+		}
 	}
 
 	_ = s.repo.UpdateStatus(ctx, email.ID, domain.EmailStatusFailed, "")
-	return nil, errors.Join(errors.New("email sending failed after retries"), lastErr)
+	return nil, ErrDeliveryFailed
 }
 
 // sleepCtx waits for d or until ctx is cancelled, whichever comes first.
