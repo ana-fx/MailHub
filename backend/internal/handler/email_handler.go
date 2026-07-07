@@ -22,6 +22,24 @@ func NewEmailHandler(emailService *service.EmailService) *EmailHandler {
 
 func (h *EmailHandler) RegisterRoutes(mux *http.ServeMux, auth func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/v1/emails", auth(http.HandlerFunc(h.SendEmail)))
+	mux.Handle("GET /api/v1/emails", auth(http.HandlerFunc(h.ListEmails)))
+}
+
+// ListEmails returns the authenticated key's most recent email logs.
+func (h *EmailHandler) ListEmails(w http.ResponseWriter, r *http.Request) {
+	apiKeyID, ok := middleware.GetAPIKeyID(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	emails, err := h.emailService.ListEmails(r.Context(), apiKeyID)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	response.Success(w, http.StatusOK, emails)
 }
 
 func (h *EmailHandler) SendEmail(w http.ResponseWriter, r *http.Request) {

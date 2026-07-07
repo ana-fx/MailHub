@@ -127,3 +127,22 @@ export function sendEmail(payload: SendEmailPayload): Promise<SendEmailResponse>
     body: JSON.stringify(payload),
   });
 }
+
+export type EmailStatus = 'pending' | 'sent' | 'failed';
+
+export interface EmailLog {
+  id: string;
+  api_key_id: string;
+  recipient: string;
+  subject: string;
+  status: EmailStatus;
+  retry_count: number;
+  error?: string;
+  message_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listEmails(): Promise<EmailLog[]> {
+  return api<EmailLog[]>('/api/v1/emails');
+}

@@ -48,6 +48,31 @@ func (r *PostgresEmailRepo) IncrementRetry(ctx context.Context, id string, errMs
 	return err
 }
 
+// ListEmails returns the most recent email logs for the API key, newest
+// first. Bodies are omitted to keep the payload small.
+func (r *PostgresEmailRepo) ListEmails(ctx context.Context, apiKeyID string, limit int) ([]domain.Email, error) {
+	const q = `SELECT id, api_key_id, recipient, subject, status, retry_count,
+	                  COALESCE(error_message, ''), COALESCE(provider_message_id, ''), created_at, updated_at
+	           FROM email_logs WHERE api_key_id = $1 ORDER BY created_at DESC LIMIT $2`
+
+	rows, err := r.db.QueryContext(ctx, q, apiKeyID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	emails := []domain.Email{}
+	for rows.Next() {
+		var e domain.Email
+		if err := rows.Scan(&e.ID, &e.APIKeyID, &e.Recipient, &e.Subject, &e.Status, &e.RetryCount,
+			&e.Error, &e.MessageID, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			return nil, err
+		}
+		emails = append(emails, e)
+	}
+	return emails, rows.Err()
+}
+
 // FindAPIKeyByHash returns the active API key matching the hash, or nil if
 // no such key exists.
 func (r *PostgresEmailRepo) FindAPIKeyByHash(ctx context.Context, hash string) (*domain.APIKey, error) {

@@ -77,6 +77,12 @@ func (s *EmailService) SendEmail(ctx context.Context, apiKeyID string, req *doma
 	return nil, ErrDeliveryFailed
 }
 
+// ListEmails returns the most recent email logs for the API key.
+func (s *EmailService) ListEmails(ctx context.Context, apiKeyID string) ([]domain.Email, error) {
+	const recentLimit = 50
+	return s.repo.ListEmails(ctx, apiKeyID, recentLimit)
+}
+
 // sleepCtx waits for d or until ctx is cancelled, whichever comes first.
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
