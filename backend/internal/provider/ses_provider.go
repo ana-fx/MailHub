@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -19,13 +18,7 @@ type SESProvider struct {
 	senderEmail string
 }
 
-// NewSESProvider builds an SES client using the default AWS credential
-// chain (env vars, shared config, instance role).
 func NewSESProvider(region, senderEmail string) (*SESProvider, error) {
-	if senderEmail == "" {
-		return nil, errors.New("ses: sender email is required")
-	}
-
 	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	if err != nil {
 		return nil, err
