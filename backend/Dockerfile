@@ -1,13 +1,18 @@
-FROM golang:1.22-alpine AS builder
-WORKDIR /app
+# Build stage
+FROM golang:1.24-alpine AS build
+WORKDIR /src
+
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /mailhub-server ./cmd/api
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /mailhub-server .
+COPY . .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/api ./cmd/api
+
+# Runtime stage: distroless ships CA certificates and a non-root user,
+# so no package installs are needed.
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /out/api /api
+
 EXPOSE 8080
-CMD ["/root/mailhub-server"]
+ENTRYPOINT ["/api"]
