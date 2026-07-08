@@ -35,9 +35,12 @@ func main() {
 	}
 
 	emailService := service.NewEmailService(repo, sesProvider, cfg.MaxRetryCount, cfg.RetryBaseDelay)
+	contactService := service.NewContactService(repo)
 
+	auth := middleware.APIKeyAuth(repo)
 	mux := http.NewServeMux()
-	handler.NewEmailHandler(emailService).RegisterRoutes(mux, middleware.APIKeyAuth(repo))
+	handler.NewEmailHandler(emailService).RegisterRoutes(mux, auth)
+	handler.NewContactHandler(contactService).RegisterRoutes(mux, auth)
 	handler.NewAuthHandler(repo).RegisterRoutes(mux)
 
 	srv := &http.Server{

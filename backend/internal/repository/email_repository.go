@@ -2,8 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"mailhub/internal/domain"
+)
+
+// Sentinel errors returned by contact operations so handlers can map them
+// to 409 and 404 without knowing about Postgres error codes.
+var (
+	ErrDuplicateContact = errors.New("contact with this email already exists")
+	ErrContactNotFound  = errors.New("contact not found")
 )
 
 // EmailRepository is the persistence boundary for email logs, API keys,
@@ -17,5 +25,9 @@ type EmailRepository interface {
 	UpsertAPIKey(ctx context.Context, apiKey *domain.APIKey) error
 	CreateUser(ctx context.Context, user *domain.User) error
 	FindUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	CreateContact(ctx context.Context, contact *domain.Contact) error
+	ListContacts(ctx context.Context, apiKeyID string, limit int) ([]domain.Contact, error)
+	UpdateContact(ctx context.Context, contact *domain.Contact) error
+	DeleteContact(ctx context.Context, apiKeyID, id string) error
 	Close() error
 }

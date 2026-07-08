@@ -50,6 +50,25 @@ type SendEmailResponse struct {
 	ProviderMessageID string `json:"provider_message_id"`
 }
 
+type Contact struct {
+	ID        string `json:"id"`
+	APIKeyID  string `json:"api_key_id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone"`
+	Address   string `json:"address"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// ContactRequest is the create/update payload. Only Email is required.
+type ContactRequest struct {
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Phone   string `json:"phone"`
+	Address string `json:"address"`
+}
+
 type CredentialsRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
