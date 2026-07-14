@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { Contact, EmailLog, EmailStatus, getApiKey, listContacts, listEmails, sendEmail } from '@/lib/api';
 import { useApiKey } from '@/lib/use-api-key';
-import { AppHeader } from '@/components/app-header';
+import { AppShell } from '@/components/app-shell';
 
 const inputClass =
   'mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
@@ -105,9 +105,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-black">
-      <div className="mx-auto w-full max-w-4xl">
-        <AppHeader subtitle="Send email and track recent deliveries." />
+    <AppShell subtitle="Send email and track recent deliveries.">
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {(['sent', 'failed', 'pending'] as const).map((status) => (
@@ -235,7 +233,6 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </AppShell>
   );
 }

@@ -14,7 +14,7 @@ import {
   verifyDomain,
 } from '@/lib/api';
 import { useApiKey } from '@/lib/use-api-key';
-import { AppHeader } from '@/components/app-header';
+import { AppShell } from '@/components/app-shell';
 
 const statusBadgeClass: Record<DomainStatus, string> = {
   verified: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
@@ -157,9 +157,7 @@ export default function DomainsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-black">
-      <div className="mx-auto w-full max-w-4xl">
-        <AppHeader subtitle="Authenticate your domains to send from your own addresses." />
+    <AppShell subtitle="Authenticate your domains to send from your own addresses.">
 
         <form
           onSubmit={handleAdd}
@@ -250,7 +248,6 @@ export default function DomainsPage() {
             ))
           )}
         </div>
-      </div>
-    </div>
+    </AppShell>
   );
 }
