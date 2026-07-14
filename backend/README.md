@@ -17,16 +17,23 @@ Consumed by other projects via HTTP + API key.
 # 1. Create the database
 createdb transactional_email_service
 
-# 2. Run migrations (from the repository root)
-migrate -path ../migrations \
-  -database "postgres://postgres:PASSWORD@localhost:5432/transactional_email_service?sslmode=disable" up
-
-# 3. Configure environment
+# 2. Configure environment
 cp .env.example .env   # then fill in DB + AWS credentials
 
-# 4. Run
+# 3. Run — migrations apply automatically on startup
 go run ./cmd/api
 ```
+
+Migrations live in `backend/migrations` and are **embedded into the
+binary** (`go:embed`). The service applies any pending migrations at
+startup before serving, so every deploy is self-contained — no migrate
+CLI or manual step is needed at runtime, in Docker, or in production.
+Already-applied migrations are skipped; `golang-migrate` takes a Postgres
+advisory lock so concurrent instances are safe.
+
+To create a new migration, add a `NNNNNN_name.up.sql` / `.down.sql` pair
+in `backend/migrations` — it ships and applies automatically on the next
+deploy.
 
 ## API
 

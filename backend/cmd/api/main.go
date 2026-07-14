@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"mailhub/internal/config"
+	"mailhub/internal/db"
 	"mailhub/internal/handler"
 	"mailhub/internal/middleware"
 	"mailhub/internal/provider"
@@ -19,6 +20,13 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
+	}
+
+	// Apply any pending schema migrations before serving. This makes every
+	// deploy self-contained: a fresh container brings the DB up to date on
+	// its own, no manual migrate step required.
+	if err := db.Migrate(db.BuildURL(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)); err != nil {
+		log.Fatalf("migrate: %v", err)
 	}
 
 	ctx := context.Background()

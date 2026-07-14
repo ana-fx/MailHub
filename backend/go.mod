@@ -1,6 +1,6 @@
 module mailhub
 
-go 1.24
+go 1.24.0
 
 toolchain go1.24.7
 
@@ -9,9 +9,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.26.0
 	github.com/aws/aws-sdk-go-v2/service/ses v1.30.0
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.63.1
+	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.12.3
-	golang.org/x/crypto v0.31.0
+	golang.org/x/crypto v0.45.0
 )
 
 require (

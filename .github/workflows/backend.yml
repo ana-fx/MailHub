@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
-      - 'migrations/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
-      - 'migrations/**'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
