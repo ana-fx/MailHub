@@ -12,6 +12,8 @@ import (
 var (
 	ErrDuplicateContact = errors.New("contact with this email already exists")
 	ErrContactNotFound  = errors.New("contact not found")
+	ErrDuplicateDomain  = errors.New("domain already added")
+	ErrDomainNotFound   = errors.New("domain not found")
 )
 
 // EmailRepository is the persistence boundary for email logs, API keys,
@@ -29,5 +31,10 @@ type EmailRepository interface {
 	ListContacts(ctx context.Context, apiKeyID string, limit int) ([]domain.Contact, error)
 	UpdateContact(ctx context.Context, contact *domain.Contact) error
 	DeleteContact(ctx context.Context, apiKeyID, id string) error
+	CreateDomain(ctx context.Context, d *domain.SendingDomain) error
+	ListDomains(ctx context.Context, apiKeyID string, limit int) ([]domain.SendingDomain, error)
+	GetDomain(ctx context.Context, apiKeyID, id string) (*domain.SendingDomain, error)
+	UpdateDomainStatus(ctx context.Context, apiKeyID, id string, status domain.DomainStatus) error
+	DeleteDomain(ctx context.Context, apiKeyID, id string) error
 	Close() error
 }

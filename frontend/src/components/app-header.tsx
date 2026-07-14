@@ -8,6 +8,7 @@ import { clearApiKey } from '@/lib/api';
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/contacts', label: 'Contacts' },
+  { href: '/domains', label: 'Domains' },
 ] as const;
 
 // Shared header for authenticated pages: title, section nav, and logout.

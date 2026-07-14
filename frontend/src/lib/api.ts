@@ -187,3 +187,40 @@ export function updateContact(id: string, payload: ContactPayload): Promise<Cont
 export function deleteContact(id: string): Promise<void> {
   return api<void>(`/api/v1/contacts/${id}`, { method: 'DELETE' });
 }
+
+export type DomainStatus = 'pending' | 'verified' | 'failed';
+
+export interface DkimRecord {
+  name: string;
+  type: string;
+  value: string;
+}
+
+export interface SendingDomain {
+  id: string;
+  api_key_id: string;
+  domain: string;
+  status: DomainStatus;
+  dkim_records: DkimRecord[];
+  created_at: string;
+  updated_at: string;
+}
+
+export function listDomains(): Promise<SendingDomain[]> {
+  return api<SendingDomain[]>('/api/v1/domains');
+}
+
+export function createDomain(domainName: string): Promise<SendingDomain> {
+  return api<SendingDomain>('/api/v1/domains', {
+    method: 'POST',
+    body: JSON.stringify({ domain: domainName }),
+  });
+}
+
+export function verifyDomain(id: string): Promise<SendingDomain> {
+  return api<SendingDomain>(`/api/v1/domains/${id}/verify`, { method: 'POST' });
+}
+
+export function deleteDomain(id: string): Promise<void> {
+  return api<void>(`/api/v1/domains/${id}`, { method: 'DELETE' });
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/lib/pq"
 
@@ -203,6 +204,107 @@ func (r *PostgresEmailRepo) DeleteContact(ctx context.Context, apiKeyID, id stri
 		return ErrContactNotFound
 	}
 	return nil
+}
+
+// CreateDomain inserts the sending domain; the generated UUID is written
+// back into d.ID. DKIM tokens are stored comma-separated. Returns
+// ErrDuplicateDomain if the domain already exists for this API key.
+func (r *PostgresEmailRepo) CreateDomain(ctx context.Context, d *domain.SendingDomain) error {
+	const q = `INSERT INTO sending_domains (api_key_id, domain, status, dkim_tokens)
+	           VALUES ($1, $2, $3, $4) RETURNING id`
+	err := r.db.QueryRowContext(ctx, q, d.APIKeyID, d.Domain, d.Status, strings.Join(d.DKIMTokens, ",")).Scan(&d.ID)
+	if isPgError(err, pgUniqueViolation) {
+		return ErrDuplicateDomain
+	}
+	return err
+}
+
+// ListDomains returns the API key's sending domains, newest first.
+func (r *PostgresEmailRepo) ListDomains(ctx context.Context, apiKeyID string, limit int) ([]domain.SendingDomain, error) {
+	const q = `SELECT id, api_key_id, domain, status, dkim_tokens, created_at, updated_at
+	           FROM sending_domains WHERE api_key_id = $1 ORDER BY created_at DESC LIMIT $2`
+
+	rows, err := r.db.QueryContext(ctx, q, apiKeyID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	domains := []domain.SendingDomain{}
+	for rows.Next() {
+		d, err := scanDomain(rows)
+		if err != nil {
+			return nil, err
+		}
+		domains = append(domains, *d)
+	}
+	return domains, rows.Err()
+}
+
+// GetDomain returns one sending domain scoped to the API key, or
+// ErrDomainNotFound.
+func (r *PostgresEmailRepo) GetDomain(ctx context.Context, apiKeyID, id string) (*domain.SendingDomain, error) {
+	const q = `SELECT id, api_key_id, domain, status, dkim_tokens, created_at, updated_at
+	           FROM sending_domains WHERE id = $1 AND api_key_id = $2`
+
+	d, err := scanDomain(r.db.QueryRowContext(ctx, q, id, apiKeyID))
+	switch {
+	case errors.Is(err, sql.ErrNoRows) || isPgError(err, pgInvalidText):
+		return nil, ErrDomainNotFound
+	case err != nil:
+		return nil, err
+	}
+	return d, nil
+}
+
+func (r *PostgresEmailRepo) UpdateDomainStatus(ctx context.Context, apiKeyID, id string, status domain.DomainStatus) error {
+	const q = `UPDATE sending_domains SET status = $1, updated_at = now() WHERE id = $2 AND api_key_id = $3`
+	res, err := r.db.ExecContext(ctx, q, status, id, apiKeyID)
+	if isPgError(err, pgInvalidText) {
+		return ErrDomainNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrDomainNotFound
+	}
+	return nil
+}
+
+func (r *PostgresEmailRepo) DeleteDomain(ctx context.Context, apiKeyID, id string) error {
+	const q = `DELETE FROM sending_domains WHERE id = $1 AND api_key_id = $2`
+	res, err := r.db.ExecContext(ctx, q, id, apiKeyID)
+	if isPgError(err, pgInvalidText) {
+		return ErrDomainNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrDomainNotFound
+	}
+	return nil
+}
+
+// rowScanner is satisfied by both *sql.Row and *sql.Rows.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanDomain(s rowScanner) (*domain.SendingDomain, error) {
+	var (
+		d      domain.SendingDomain
+		tokens string
+	)
+	if err := s.Scan(&d.ID, &d.APIKeyID, &d.Domain, &d.Status, &tokens, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		return nil, err
+	}
+	if tokens != "" {
+		d.DKIMTokens = strings.Split(tokens, ",")
+	}
+	d.DKIMRecords = domain.BuildDKIMRecords(d.Domain, d.DKIMTokens)
+	return &d, nil
 }
 
 func (r *PostgresEmailRepo) Close() error {

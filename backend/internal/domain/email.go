@@ -69,6 +69,52 @@ type ContactRequest struct {
 	Address string `json:"address"`
 }
 
+type DomainStatus string
+
+const (
+	DomainStatusPending  DomainStatus = "pending"
+	DomainStatusVerified DomainStatus = "verified"
+	DomainStatusFailed   DomainStatus = "failed"
+)
+
+type SendingDomain struct {
+	ID          string       `json:"id"`
+	APIKeyID    string       `json:"api_key_id"`
+	Domain      string       `json:"domain"`
+	Status      DomainStatus `json:"status"`
+	DKIMTokens  []string     `json:"-"`
+	DKIMRecords []DKIMRecord `json:"dkim_records"`
+	CreatedAt   string       `json:"created_at"`
+	UpdatedAt   string       `json:"updated_at"`
+}
+
+// DKIMRecord is one CNAME the user must add to their DNS to authenticate
+// the domain. Derived from the EasyDKIM tokens SES returns.
+type DKIMRecord struct {
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+// BuildDKIMRecords turns EasyDKIM tokens into the CNAME records the user
+// adds at their DNS provider: <token>._domainkey.<domain> ->
+// <token>.dkim.amazonses.com.
+func BuildDKIMRecords(dkimDomain string, tokens []string) []DKIMRecord {
+	records := make([]DKIMRecord, 0, len(tokens))
+	for _, t := range tokens {
+		records = append(records, DKIMRecord{
+			Name:  t + "._domainkey." + dkimDomain,
+			Type:  "CNAME",
+			Value: t + ".dkim.amazonses.com",
+		})
+	}
+	return records
+}
+
+type CreateDomainRequest struct {
+	Domain string `json:"domain"`
+}
+
 type CredentialsRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
