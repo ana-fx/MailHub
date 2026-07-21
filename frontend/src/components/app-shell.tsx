@@ -3,7 +3,7 @@
 import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Globe, LogOut, Menu, Mail } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, Globe, LogOut, Menu, Mail } from 'lucide-react';
 
 import { clearApiKey } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/domains', label: 'Domains', icon: Globe },
 ] as const;

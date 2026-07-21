@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { getApiKey, login, register, setApiKey } from '@/lib/api';
+import { getApiKey, login, register, setApiKey, setUserEmail } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,7 @@ export default function LoginPage() {
     try {
       const authenticate = mode === 'login' ? login : register;
       const apiKey = await authenticate(email, password);
+      setUserEmail(email);
       setApiKey(apiKey);
       router.replace('/dashboard');
     } catch (err) {

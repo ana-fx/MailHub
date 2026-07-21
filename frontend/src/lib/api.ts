@@ -1,6 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8080';
 
 const API_KEY_STORAGE_KEY = 'mailhub_api_key';
+const EMAIL_STORAGE_KEY = 'mailhub_email';
 
 const listeners = new Set<() => void>();
 
@@ -20,7 +21,18 @@ export function setApiKey(key: string) {
 
 export function clearApiKey() {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
+  localStorage.removeItem(EMAIL_STORAGE_KEY);
   notifyApiKeyChanged();
+}
+
+// The signed-in email is kept only for display (greeting); auth is by key.
+export function getUserEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(EMAIL_STORAGE_KEY);
+}
+
+export function setUserEmail(email: string) {
+  localStorage.setItem(EMAIL_STORAGE_KEY, email);
 }
 
 // Subscribe to API key changes from this tab (setApiKey/clearApiKey) and
