@@ -3,58 +3,63 @@
 import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Users, Globe, LogOut, Menu, Mail } from 'lucide-react';
 
 import { clearApiKey } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/contacts', label: 'Contacts' },
-  { href: '/domains', label: 'Domains' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/domains', label: 'Domains', icon: Globe },
 ] as const;
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-1">
-      {navLinks.map((link) => {
-        const active = pathname === link.href;
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            onClick={onNavigate}
-            aria-current={active ? 'page' : undefined}
-            className={
-              'rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-              (active
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100')
-            }
-          >
-            {link.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-    <div className="flex h-full flex-col p-4">
-      <Link href="/dashboard" onClick={onNavigate} className="px-3 py-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-full flex-col gap-2 p-3">
+      <Link
+        href="/dashboard"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-3 py-2 text-lg font-semibold"
+      >
+        <Mail className="size-5" />
         MailHub
       </Link>
-      <div className="mt-4 flex-1">
-        <NavItems onNavigate={onNavigate} />
-      </div>
-      <button
-        type="button"
+
+      <nav className="mt-2 flex flex-1 flex-col gap-1">
+        {navLinks.map((link) => {
+          const active = pathname === link.href;
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={onNavigate}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              )}
+            >
+              <Icon className="size-4" />
+              {link.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <Button
+        variant="ghost"
         onClick={clearApiKey}
-        className="rounded-lg px-3 py-2 text-left text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        className="justify-start text-sidebar-foreground/70"
       >
+        <LogOut className="size-4" />
         Logout
-      </button>
+      </Button>
     </div>
   );
 }
@@ -68,9 +73,9 @@ export function AppShell({ subtitle, children }: { subtitle: string; children: R
   const title = navLinks.find((l) => l.href === pathname)?.label ?? 'MailHub';
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r border-zinc-200 md:block dark:border-zinc-800">
+      <aside className="bg-sidebar border-sidebar-border hidden w-60 shrink-0 border-r md:block">
         <div className="sticky top-0 h-screen">
           <SidebarInner />
         </div>
@@ -78,9 +83,9 @@ export function AppShell({ subtitle, children }: { subtitle: string; children: R
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-20 md:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-60 border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-black">
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+          <aside className="bg-sidebar border-sidebar-border absolute top-0 left-0 h-full w-60 border-r">
             <SidebarInner onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
@@ -88,22 +93,17 @@ export function AppShell({ subtitle, children }: { subtitle: string; children: R
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 md:hidden dark:border-zinc-800">
-          <button
-            type="button"
-            aria-label="Open menu"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-lg border border-zinc-300 px-2 py-1 text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
-          >
-            ☰
-          </button>
-          <span className="text-base font-semibold text-zinc-900 dark:text-zinc-100">MailHub</span>
+        <div className="flex items-center gap-3 border-b px-4 py-3 md:hidden">
+          <Button variant="outline" size="icon" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
+            <Menu />
+          </Button>
+          <span className="text-base font-semibold">MailHub</span>
         </div>
 
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
           <header className="mb-6">
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
           </header>
           {children}
         </main>

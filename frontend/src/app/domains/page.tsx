@@ -15,11 +15,16 @@ import {
 } from '@/lib/api';
 import { useApiKey } from '@/lib/use-api-key';
 import { AppShell } from '@/components/app-shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const statusBadgeClass: Record<DomainStatus, string> = {
-  verified: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  failed: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
-  pending: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+const statusVariant: Record<DomainStatus, 'success' | 'destructive' | 'warning'> = {
+  verified: 'success',
+  failed: 'destructive',
+  pending: 'warning',
 };
 
 function DkimTable({ records }: { records: DkimRecord[] }) {
@@ -31,45 +36,40 @@ function DkimTable({ records }: { records: DkimRecord[] }) {
       setCopied(value);
       setTimeout(() => setCopied((c) => (c === value ? null : c)), 1500);
     } catch {
-      // Clipboard may be unavailable (e.g. non-HTTPS); the value is still
-      // selectable in the cell.
+      // clipboard may be unavailable on non-HTTPS
     }
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <table className="w-full text-left text-xs">
-        <thead>
-          <tr className="bg-zinc-50 text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
-            <th className="px-3 py-2 font-medium">Type</th>
-            <th className="px-3 py-2 font-medium">Name / Host</th>
-            <th className="px-3 py-2 font-medium">Value</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody className="font-mono">
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="pl-4">Type</TableHead>
+            <TableHead>Name / Host</TableHead>
+            <TableHead>Value</TableHead>
+            <TableHead className="pr-4" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="font-mono text-xs">
           {records.map((r) => (
-            <tr key={r.name} className="border-t border-zinc-100 dark:border-zinc-800">
-              <td className="px-3 py-2">{r.type}</td>
-              <td className="max-w-[16rem] truncate px-3 py-2" title={r.name}>
+            <TableRow key={r.name}>
+              <TableCell className="pl-4">{r.type}</TableCell>
+              <TableCell className="max-w-[16rem] truncate" title={r.name}>
                 {r.name}
-              </td>
-              <td className="max-w-[16rem] truncate px-3 py-2" title={r.value}>
+              </TableCell>
+              <TableCell className="max-w-[16rem] truncate" title={r.value}>
                 {r.value}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => copy(`${r.name}\t${r.value}`)}
-                  className="rounded border border-zinc-300 px-2 py-1 font-sans text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                >
+              </TableCell>
+              <TableCell className="pr-4 text-right">
+                <Button variant="outline" size="sm" onClick={() => copy(`${r.name}\t${r.value}`)}>
                   {copied === `${r.name}\t${r.value}` ? 'Copied' : 'Copy'}
-                </button>
-              </td>
-            </tr>
+                </Button>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -97,9 +97,7 @@ export default function DomainsPage() {
       .then((data) => {
         if (!cancelled) setDomains(data);
       })
-      .catch(() => {
-        // Auth errors clear the key and trigger the redirect effect.
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -109,7 +107,7 @@ export default function DomainsPage() {
     try {
       setDomains(await listDomains());
     } catch {
-      // Keep the previous list on transient errors.
+      // keep previous list
     }
   }
 
@@ -136,7 +134,7 @@ export default function DomainsPage() {
       const updated = await verifyDomain(id);
       setDomains((prev) => (prev ? prev.map((d) => (d.id === id ? updated : d)) : prev));
     } catch {
-      // Provider errors leave status unchanged.
+      // provider errors leave status unchanged
     } finally {
       setVerifyingId(null);
     }
@@ -148,7 +146,7 @@ export default function DomainsPage() {
       await deleteDomain(d.id);
       await refresh();
     } catch {
-      // Auth errors redirect; anything else keeps the list.
+      // auth errors redirect; otherwise keep list
     }
   }
 
@@ -158,96 +156,85 @@ export default function DomainsPage() {
 
   return (
     <AppShell subtitle="Authenticate your domains to send from your own addresses.">
+      <Card>
+        <CardContent>
+          <form onSubmit={handleAdd} className="flex items-start gap-3">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="yourdomain.com"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                required
+              />
+              {error && (
+                <p role="alert" className="text-destructive mt-2 text-sm">
+                  {error}
+                </p>
+              )}
+            </div>
+            <Button type="submit" disabled={adding}>
+              {adding ? 'Adding…' : 'Add domain'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-        <form
-          onSubmit={handleAdd}
-          className="mt-6 flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="yourdomain.com"
-              value={newDomain}
-              onChange={(e) => setNewDomain(e.target.value)}
-              required
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            />
-            {error && (
-              <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
-                {error}
-              </p>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={adding}
-            className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            {adding ? 'Adding…' : 'Add domain'}
-          </button>
-        </form>
-
-        <div className="mt-4 space-y-4">
-          {domains === null ? (
-            <p className="px-1 py-8 text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
-          ) : domains.length === 0 ? (
-            <p className="px-1 py-8 text-sm text-zinc-500 dark:text-zinc-400">
-              No domains yet. Add one to send from your own address.
-            </p>
-          ) : (
-            domains.map((d) => (
-              <div
-                key={d.id}
-                className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <div className="flex items-center justify-between gap-3 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{d.domain}</span>
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass[d.status]}`}
-                    >
-                      {d.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((e) => (e === d.id ? null : d.id))}
-                      className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
-                    >
-                      {expanded === d.id ? 'Hide DNS records' : 'Show DNS records'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleVerify(d.id)}
-                      disabled={verifyingId === d.id}
-                      className="rounded-lg border border-zinc-300 px-3 py-1 font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                    >
-                      {verifyingId === d.id ? 'Checking…' : 'Verify'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(d)}
-                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                      Remove
-                    </button>
-                  </div>
+      <div className="mt-4 flex flex-col gap-4">
+        {domains === null ? (
+          <p className="text-muted-foreground py-8 text-sm">Loading…</p>
+        ) : domains.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-sm">
+            No domains yet. Add one to send from your own address.
+          </p>
+        ) : (
+          domains.map((d) => (
+            <Card key={d.id} className="gap-0 py-0">
+              <div className="flex items-center justify-between gap-3 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">{d.domain}</span>
+                  <Badge variant={statusVariant[d.status]}>{d.status}</Badge>
                 </div>
-
-                {expanded === d.id && (
-                  <div className="border-t border-zinc-100 px-5 py-4 dark:border-zinc-800">
-                    <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-                      Add these CNAME records at your DNS provider, then click Verify. DNS changes can
-                      take a few minutes to a few hours to propagate.
-                    </p>
-                    <DkimTable records={d.dkim_records} />
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpanded((e) => (e === d.id ? null : d.id))}
+                  >
+                    {expanded === d.id ? 'Hide DNS records' : 'Show DNS records'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleVerify(d.id)}
+                    disabled={verifyingId === d.id}
+                  >
+                    {verifyingId === d.id ? 'Checking…' : 'Verify'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDelete(d)}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
-            ))
-          )}
-        </div>
+
+              {expanded === d.id && (
+                <div className="border-t px-5 py-4">
+                  <p className="text-muted-foreground mb-3 text-xs">
+                    Add these CNAME records at your DNS provider, then click Verify. DNS changes can
+                    take a few minutes to a few hours to propagate.
+                  </p>
+                  <DkimTable records={d.dkim_records} />
+                </div>
+              )}
+            </Card>
+          ))
+        )}
+      </div>
     </AppShell>
   );
 }

@@ -1,21 +1,23 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Contact, EmailLog, EmailStatus, getApiKey, listContacts, listEmails, sendEmail } from '@/lib/api';
 import { useApiKey } from '@/lib/use-api-key';
 import { AppShell } from '@/components/app-shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const inputClass =
-  'mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
-
-const labelClass = 'mt-4 block text-xs font-medium text-zinc-600 dark:text-zinc-300';
-
-const statusBadgeClass: Record<EmailStatus, string> = {
-  sent: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  failed: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
-  pending: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+const statusVariant: Record<EmailStatus, 'success' | 'destructive' | 'warning'> = {
+  sent: 'success',
+  failed: 'destructive',
+  pending: 'warning',
 };
 
 export default function DashboardPage() {
@@ -27,22 +29,11 @@ export default function DashboardPage() {
   const [logs, setLogs] = useState<EmailLog[] | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
 
-  // During hydration the reactive apiKey briefly reads as null (the server
-  // snapshot), so the guard re-checks storage directly before redirecting.
   useEffect(() => {
     if (!apiKey && !getApiKey()) {
       router.replace('/login');
     }
   }, [apiKey, router]);
-
-  const refreshLogs = useCallback(async () => {
-    try {
-      setLogs(await listEmails());
-    } catch {
-      // Auth errors clear the key and trigger the redirect effect;
-      // anything else just leaves the previous list in place.
-    }
-  }, []);
 
   useEffect(() => {
     if (!apiKey) return;
@@ -51,20 +42,24 @@ export default function DashboardPage() {
       .then((data) => {
         if (!cancelled) setLogs(data);
       })
-      .catch(() => {
-        // Auth errors clear the key and trigger the redirect effect.
-      });
+      .catch(() => {});
     listContacts()
       .then((data) => {
         if (!cancelled) setContacts(data);
       })
-      .catch(() => {
-        // The datalist is a nice-to-have; ignore load failures.
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [apiKey]);
+
+  async function refreshLogs() {
+    try {
+      setLogs(await listEmails());
+    } catch {
+      // keep previous list
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,10 +79,7 @@ export default function DashboardPage() {
       setNotice(`Email ${response.status} (ID: ${response.id})`);
       form.reset();
     } catch (err) {
-      if (err instanceof Error && err.message === 'UNAUTHORIZED') {
-        // clearApiKey inside api() already triggers the redirect effect.
-        return;
-      }
+      if (err instanceof Error && err.message === 'UNAUTHORIZED') return;
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSending(false);
@@ -106,133 +98,111 @@ export default function DashboardPage() {
 
   return (
     <AppShell subtitle="Send email and track recent deliveries.">
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {(['sent', 'failed', 'pending'] as const).map((status) => (
-            <div
-              key={status}
-              className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {(['sent', 'failed', 'pending'] as const).map((status) => (
+          <Card key={status}>
+            <CardHeader>
+              <CardTitle className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {status}
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-                {logs === null ? '—' : counts[status]}
-              </p>
-            </div>
-          ))}
-        </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-semibold">{logs === null ? '—' : counts[status]}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Send an email</h2>
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Send an email</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="to">To</Label>
+                <Input id="to" name="to" type="email" required list="contact-emails" />
+                <datalist id="contact-emails">
+                  {contacts.map((contact) => (
+                    <option key={contact.id} value={contact.email}>
+                      {contact.name}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
 
-            <label className={labelClass} htmlFor="to">
-              To
-            </label>
-            <input id="to" name="to" type="email" required list="contact-emails" className={inputClass} />
-            <datalist id="contact-emails">
-              {contacts.map((contact) => (
-                <option key={contact.id} value={contact.email}>
-                  {contact.name}
-                </option>
-              ))}
-            </datalist>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="subject">Subject</Label>
+                <Input id="subject" name="subject" type="text" required />
+              </div>
 
-            <label className={labelClass} htmlFor="subject">
-              Subject
-            </label>
-            <input id="subject" name="subject" type="text" required className={inputClass} />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="body">Body</Label>
+                <Textarea id="body" name="body" rows={5} required />
+              </div>
 
-            <label className={labelClass} htmlFor="body">
-              Body
-            </label>
-            <textarea id="body" name="body" rows={5} required className={inputClass} />
+              {error && (
+                <p role="alert" className="text-destructive text-sm">
+                  {error}
+                </p>
+              )}
+              {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p>}
 
-            {error && (
-              <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-                {error}
-              </p>
-            )}
+              <Button type="submit" disabled={sending} className="w-full">
+                {sending ? 'Sending…' : 'Send email'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-            {notice && (
-              <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                {notice}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={sending}
-              className="mt-5 w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {sending ? 'Sending…' : 'Send email'}
-            </button>
-          </form>
-
-          <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Recent emails</h2>
-              <button
-                type="button"
-                onClick={() => void refreshLogs()}
-                className="text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-              >
-                Refresh
-              </button>
-            </div>
-
+        <Card className="gap-0 py-0">
+          <CardHeader className="flex flex-row items-center justify-between border-b py-4">
+            <CardTitle className="text-base">Recent emails</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => void refreshLogs()}>
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent className="px-0">
             {logs === null ? (
-              <p className="px-5 py-8 text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+              <p className="text-muted-foreground px-6 py-8 text-sm">Loading…</p>
             ) : logs.length === 0 ? (
-              <p className="px-5 py-8 text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="text-muted-foreground px-6 py-8 text-sm">
                 No emails yet. Send your first one from the form.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      <th className="px-5 py-3 font-medium">Recipient</th>
-                      <th className="px-5 py-3 font-medium">Subject</th>
-                      <th className="px-5 py-3 font-medium">Status</th>
-                      <th className="px-5 py-3 font-medium">Retries</th>
-                      <th className="px-5 py-3 font-medium">Sent at</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map((log) => (
-                      <tr
-                        key={log.id}
-                        className="border-t border-zinc-100 text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
-                      >
-                        <td className="px-5 py-3">{log.recipient}</td>
-                        <td className="max-w-[16rem] truncate px-5 py-3" title={log.subject}>
-                          {log.subject}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span
-                            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass[log.status]}`}
-                            title={log.error || undefined}
-                          >
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3">{log.retry_count}</td>
-                        <td className="whitespace-nowrap px-5 py-3">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Recipient</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Retries</TableHead>
+                    <TableHead>Sent at</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="pl-6">{log.recipient}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={log.subject}>
+                        {log.subject}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant[log.status]} title={log.error || undefined}>
+                          {log.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{log.retry_count}</TableCell>
+                      <TableCell>{new Date(log.created_at).toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+      </div>
     </AppShell>
   );
 }
