@@ -60,9 +60,11 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!apiKey) return;
     let cancelled = false;
-    listContacts().then((d) => !cancelled && setContacts(d)).catch(() => {});
-    listEmails().then((d) => !cancelled && setLogs(d)).catch(() => {});
-    listDomains().then((d) => !cancelled && setDomains(d)).catch(() => {});
+    // Settle each to an empty list on failure so stats show 0 rather than
+    // hanging on "—". Auth errors redirect via the guard.
+    listContacts().then((d) => !cancelled && setContacts(d)).catch(() => !cancelled && setContacts([]));
+    listEmails().then((d) => !cancelled && setLogs(d)).catch(() => !cancelled && setLogs([]));
+    listDomains().then((d) => !cancelled && setDomains(d)).catch(() => !cancelled && setDomains([]));
     return () => {
       cancelled = true;
     };

@@ -97,7 +97,11 @@ export default function DomainsPage() {
       .then((data) => {
         if (!cancelled) setDomains(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Settle to an empty list so the UI shows the empty state instead
+        // of a stuck "Loading…". Auth errors redirect via the guard.
+        if (!cancelled) setDomains([]);
+      });
     return () => {
       cancelled = true;
     };

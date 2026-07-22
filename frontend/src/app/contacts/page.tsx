@@ -44,7 +44,11 @@ export default function ContactsPage() {
       .then((data) => {
         if (!cancelled) setContacts(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Settle to an empty list so the UI shows the empty state instead
+        // of a stuck "Loading…". Auth errors redirect via the guard.
+        if (!cancelled) setContacts([]);
+      });
     return () => {
       cancelled = true;
     };
